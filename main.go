@@ -1,15 +1,15 @@
-// vim: set ts=4 sw=4 tw=99 noet: 
+// vim: set ts=4 sw=4 tw=99 noet:
 //
-// Copyright 2014, Edmodo, Inc. 
-// 
+// Copyright 2014, Edmodo, Inc.
+//
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not use this work except in compliance with the License.
 // You may obtain a copy of the License in the LICENSE file, or at:
-// 
+//
 // http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" 
-// BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language 
-// governing permissions and limitations under the License. 
+//
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS"
+// BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language
+// governing permissions and limitations under the License.
 
 package main
 
@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
@@ -138,9 +139,22 @@ func (this *DockerClient) onContainerStarted(id string) bool {
 
 	log.Printf("Switching to container %s (ip: %s)\n", id, address)
 
+	oldContainers := map[string]bool{}
+
 	for _, listener := range this.proxy.listeners {
-		listener.reconfigure(id, address)
+		oldID := listener.reconfigure(id, address)
+		if oldID != "" {
+			oldContainers[oldID] = true
+		}
 	}
+
+	for oldID, _ := range oldContainers {
+		this.dc.KillContainer(docker.KillContainerOptions{
+			ID:     oldID,
+			Signal: docker.Signal(syscall.SIGHUP),
+		})
+	}
+
 	return true
 }
 
@@ -164,7 +178,7 @@ func main() {
 	dockerp := flag.String("docker", "unix:///var/run/docker.sock", "URL of the Docker host")
 	tagp := flag.String("tag", "", "Tag of docker images to watch")
 	statusp := flag.String("status_url", "", "Optional HTTP status URL of docker container, e.g. :80/status")
-	timeoutp := flag.Duration("timeout", 10 * time.Second, "Time to wait for a new container to respond to a status query")
+	timeoutp := flag.Duration("timeout", 10*time.Second, "Time to wait for a new container to respond to a status query")
 	flag.Parse()
 
 	if *portsp == "" {
