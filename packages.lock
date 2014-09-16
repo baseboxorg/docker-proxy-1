@@ -1,0 +1,9 @@
+{
+	"Repository": "github.com/edmodo/minion/proxyserver",
+	"Packages": {
+		"github.com/fsouza/go-dockerclient": {
+			"Source": "https://github.com/fsouza/go-dockerclient",
+			"Revision": "00755f6230e95ffce30eade8e9da6733818f839d"
+		}
+	}
+}
