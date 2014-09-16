@@ -97,6 +97,4 @@ func (this *ProxyListener) handleConnection(cn net.Conn) {
 		cond.Wait()
 	}
 	cond.L.Unlock()
-
-	log.Printf("Connection %s finished", cn.RemoteAddr())
 }

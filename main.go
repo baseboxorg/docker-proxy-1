@@ -183,10 +183,12 @@ func main() {
 
 	if *portsp == "" {
 		fmt.Fprintf(os.Stderr, "Must specify one or more port mappings.\n")
+		flag.Usage()
 		os.Exit(1)
 	}
 	if *tagp == "" {
 		fmt.Fprintf(os.Stderr, "Must specify a docker tag.\n")
+		flag.Usage()
 		os.Exit(1)
 	}
 
