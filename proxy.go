@@ -16,15 +16,24 @@ package main
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 )
 
-// Maintain a set of listeners on different ports.
+// Maintain a set of net.Listeners on a number of ports. All the ports are
+// bound to a single source IP address. When a new container comes online,
+// the listeners are reconfigured to forward traffic to a new IP.
 type ProxyServer struct {
 	sourceAddr string
 	listeners  map[string]*ProxyListener
 }
 
+// Create a new proxy server on the given source IP address, with a list of
+// port mappings. The port mapping list should be a comma-delimited list of
+// port numbers and/or host=container port mappings (such as 80=3000).
+//
+// So containers do not have to expose any ports, we assume their internal
+// ports are fixed.
 func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 	listeners := map[string]*ProxyListener{}
 	for _, mapping := range strings.Split(destPorts, ",") {
@@ -39,11 +48,20 @@ func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 			containerPort = parts[1]
 		}
 
+		if _, err := strconv.ParseUint(hostPort, 10, 16); err != nil {
+			return nil, fmt.Errorf("port %s is not a valid port number", hostPort)
+		}
+		if _, err := strconv.ParseUint(containerPort, 10, 16); err != nil {
+			return nil, fmt.Errorf("port %s is not a valid port number", containerPort)
+		}
+
 		listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", sourceAddr, hostPort))
 		if err != nil {
 			return nil, err
 		}
 
+		// Docker suffixes ports with a protocol, so we do the same here (we assume TCP)
+		// for fast lookup.
 		portName := fmt.Sprintf("%s/tcp", containerPort)
 		listeners[portName] = &ProxyListener{
 			destPort: containerPort,

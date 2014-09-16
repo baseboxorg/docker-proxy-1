@@ -45,6 +45,7 @@ func (this *ProxyListener) stop() {
 	this.listener.Close()
 }
 
+// Change the address we proxy to.
 func (this *ProxyListener) reconfigure(destAddr string) {
 	this.destAddr = fmt.Sprintf("%s:%s", destAddr, this.destPort)
 }

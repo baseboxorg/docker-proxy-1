@@ -50,11 +50,15 @@ func NewDockerClient(address, tag string, proxy *ProxyServer) (*DockerClient, er
 	return client, nil
 }
 
+// Strip the sub-tag off a container name, and compare it to the base tag we're
+// looking for.
 func (this *DockerClient) matchTag(tag string) bool {
 	components := strings.Split(tag, ":")
 	return components[0] == this.tag
 }
 
+// Detect any existing containers matching our tag. Kill all but the latest,
+// and start proxying to the latest.
 func (this *DockerClient) DetectExistingContainers() {
 	options := docker.ListContainersOptions{}
 	list, err := this.dc.ListContainers(options)
@@ -95,7 +99,8 @@ func (this *DockerClient) DetectExistingContainers() {
 	this.containerStarted(latest.ID)
 }
 
-func (this *DockerClient) containerStarted(id string) bool {
+// Called when a new container is started.
+func (this *DockerClient) onContainerStarted(id string) bool {
 	container, err := this.dc.InspectContainer(id)
 	if err != nil {
 		log.Printf("Could not inspect docker container %s: %s\n", id, err.Error())
@@ -121,7 +126,7 @@ func (this *DockerClient) Listen() {
 
 		switch event.Status {
 		case "start":
-			this.containerStarted(event.ID)
+			this.onContainerStarted(event.ID)
 		}
 	}
 }
@@ -142,6 +147,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create the proxy server and begin listening in the background.
 	server, err := NewProxyServer(*addressp, *portsp)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not listen on %s: %s\n", *addressp, err.Error())
@@ -156,6 +162,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Try and proxy to anything currently running.
 	dc.DetectExistingContainers()
 
 	fmt.Fprintf(os.Stdout, "Listening...\n")
