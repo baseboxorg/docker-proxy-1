@@ -17,17 +17,21 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
 )
 
 type DockerClient struct {
-	dc     *docker.Client
-	proxy  *ProxyServer
-	tag    string
-	events chan *docker.APIEvents
+	dc            *docker.Client
+	proxy         *ProxyServer
+	tag           string
+	events        chan *docker.APIEvents
+	statusURL     string
+	statusTimeout time.Duration
 }
 
 func NewDockerClient(address, tag string, proxy *ProxyServer) (*DockerClient, error) {
@@ -50,6 +54,11 @@ func NewDockerClient(address, tag string, proxy *ProxyServer) (*DockerClient, er
 	return client, nil
 }
 
+func (this *DockerClient) SetStatusInfo(statusURL string, timeout time.Duration) {
+	this.statusURL = statusURL
+	this.statusTimeout = timeout
+}
+
 // Strip the sub-tag off a container name, and compare it to the base tag we're
 // looking for.
 func (this *DockerClient) matchTag(tag string) bool {
@@ -59,12 +68,11 @@ func (this *DockerClient) matchTag(tag string) bool {
 
 // Detect any existing containers matching our tag. Kill all but the latest,
 // and start proxying to the latest.
-func (this *DockerClient) DetectExistingContainers() {
+func (this *DockerClient) DetectExistingContainers() error {
 	options := docker.ListContainersOptions{}
 	list, err := this.dc.ListContainers(options)
 	if err != nil {
-		log.Printf("Could not query existing containers: %s\n", err.Error())
-		return
+		return err
 	}
 
 	var latest docker.APIContainers
@@ -80,7 +88,7 @@ func (this *DockerClient) DetectExistingContainers() {
 	}
 
 	if len(matching) == 0 {
-		return
+		return nil
 	}
 
 	// Go through and kill off old containers.
@@ -96,7 +104,8 @@ func (this *DockerClient) DetectExistingContainers() {
 	}
 
 	// Use the latest container.
-	this.containerStarted(latest.ID)
+	this.onContainerStarted(latest.ID)
+	return nil
 }
 
 // Called when a new container is started.
@@ -109,10 +118,28 @@ func (this *DockerClient) onContainerStarted(id string) bool {
 
 	address := container.NetworkSettings.IPAddress
 
+	if this.statusURL != "" {
+		url := fmt.Sprintf("http://%s%s", address, this.statusURL)
+		client := &http.Client{
+			Timeout: time.Second,
+		}
+		end := time.Now().Add(this.statusTimeout)
+		for {
+			if time.Now().After(end) {
+				log.Printf("New container came online, but did not respond to status queries.")
+				return false
+			}
+			if _, err := client.Get(url); err == nil {
+				break
+			}
+			time.Sleep(time.Second)
+		}
+	}
+
 	log.Printf("Switching to container %s (ip: %s)\n", id, address)
 
 	for _, listener := range this.proxy.listeners {
-		listener.reconfigure(address)
+		listener.reconfigure(id, address)
 	}
 	return true
 }
@@ -136,6 +163,8 @@ func main() {
 	portsp := flag.String("ports", "", "Comma-delimited list of host=container ports to listen on")
 	dockerp := flag.String("docker", "unix:///var/run/docker.sock", "URL of the Docker host")
 	tagp := flag.String("tag", "", "Tag of docker images to watch")
+	statusp := flag.String("status_url", "", "Optional HTTP status URL of docker container, e.g. :80/status")
+	timeoutp := flag.Duration("timeout", 10 * time.Second, "Time to wait for a new container to respond to a status query")
 	flag.Parse()
 
 	if *portsp == "" {
@@ -162,8 +191,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *statusp != "" {
+		dc.SetStatusInfo(*statusp, *timeoutp)
+	}
+
 	// Try and proxy to anything currently running.
-	dc.DetectExistingContainers()
+	if err := dc.DetectExistingContainers(); err != nil {
+		fmt.Fprintf(os.Stderr, "Could not query containers: %s\n", err.Error())
+		os.Exit(1)
+	}
 
 	fmt.Fprintf(os.Stdout, "Listening...\n")
 	dc.Listen()

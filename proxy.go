@@ -25,7 +25,7 @@ import (
 // the listeners are reconfigured to forward traffic to a new IP.
 type ProxyServer struct {
 	sourceAddr string
-	listeners  map[string]*ProxyListener
+	listeners  []*ProxyListener
 }
 
 // Create a new proxy server on the given source IP address, with a list of
@@ -35,7 +35,7 @@ type ProxyServer struct {
 // So containers do not have to expose any ports, we assume their internal
 // ports are fixed.
 func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
-	listeners := map[string]*ProxyListener{}
+	listeners := []*ProxyListener{}
 	for _, mapping := range strings.Split(destPorts, ",") {
 		parts := strings.Split(mapping, "=")
 		if len(parts) > 2 {
@@ -60,14 +60,11 @@ func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 			return nil, err
 		}
 
-		// Docker suffixes ports with a protocol, so we do the same here (we assume TCP)
-		// for fast lookup.
-		portName := fmt.Sprintf("%s/tcp", containerPort)
-		listeners[portName] = &ProxyListener{
+		listeners = append(listeners, &ProxyListener{
 			destPort: containerPort,
 			destAddr: "unknown:unknown",
 			listener: listener,
-		}
+		})
 	}
 
 	return &ProxyServer{

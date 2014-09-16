@@ -26,8 +26,9 @@ import (
 type ProxyListener struct {
 	destPort   string
 
-	destAddr   string
-	listener   net.Listener
+	containerID string
+	destAddr    string
+	listener    net.Listener
 }
 
 func (this *ProxyListener) start() {
@@ -45,9 +46,12 @@ func (this *ProxyListener) stop() {
 	this.listener.Close()
 }
 
-// Change the address we proxy to.
-func (this *ProxyListener) reconfigure(destAddr string) {
+// Change the address we proxy to, and return the old container ID.
+func (this *ProxyListener) reconfigure(containerID, destAddr string) string {
+	oldID := this.containerID
+	this.containerID = containerID
 	this.destAddr = fmt.Sprintf("%s:%s", destAddr, this.destPort)
+	return oldID
 }
 
 func (this *ProxyListener) handleConnection(cn net.Conn) {
