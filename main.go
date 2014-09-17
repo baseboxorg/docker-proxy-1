@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"syscall"
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
@@ -33,6 +32,7 @@ type DockerClient struct {
 	events        chan *docker.APIEvents
 	statusURL     string
 	statusTimeout time.Duration
+	gracePeriod   time.Duration
 }
 
 func NewDockerClient(address, tag string, proxy *ProxyServer) (*DockerClient, error) {
@@ -58,6 +58,10 @@ func NewDockerClient(address, tag string, proxy *ProxyServer) (*DockerClient, er
 func (this *DockerClient) SetStatusInfo(statusURL string, timeout time.Duration) {
 	this.statusURL = statusURL
 	this.statusTimeout = timeout
+}
+
+func (this *DockerClient) SetGracePeriod(gracePeriod time.Duration) {
+	this.gracePeriod = gracePeriod
 }
 
 // Strip the sub-tag off a container name, and compare it to the base tag we're
@@ -149,10 +153,20 @@ func (this *DockerClient) onContainerStarted(id string) bool {
 	}
 
 	for oldID, _ := range oldContainers {
-		this.dc.KillContainer(docker.KillContainerOptions{
-			ID:     oldID,
-			Signal: docker.Signal(syscall.SIGHUP),
-		})
+		go func(id string) {
+			if this.gracePeriod != 0 {
+				log.Printf("Waiting %s to kill container %s...", this.gracePeriod, id)
+				time.Sleep(this.gracePeriod)
+			}
+
+			log.Printf("Killing old container: %s", id)
+			err := this.dc.KillContainer(docker.KillContainerOptions{
+				ID: id,
+			})
+			if err != nil {
+				log.Printf("Failed to signal container: %s", err.Error())
+			}
+		}(oldID)
 	}
 
 	return true
@@ -179,6 +193,7 @@ func main() {
 	tagp := flag.String("tag", "", "Tag of docker images to watch")
 	statusp := flag.String("status_url", "", "Optional HTTP status URL of docker container, e.g. :80/status")
 	timeoutp := flag.Duration("timeout", 10*time.Second, "Time to wait for a new container to respond to a status query")
+	gracePeriodp := flag.Duration("grace_period", 10*time.Second, "Time to wait before killing an old container")
 	flag.Parse()
 
 	if *portsp == "" {
@@ -210,6 +225,7 @@ func main() {
 	if *statusp != "" {
 		dc.SetStatusInfo(*statusp, *timeoutp)
 	}
+	dc.SetGracePeriod(*gracePeriodp)
 
 	// Try and proxy to anything currently running.
 	if err := dc.DetectExistingContainers(); err != nil {
