@@ -18,7 +18,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"sync"
 )
 
 // Listen on a source port and forward to a destination address and port. The
@@ -54,6 +53,11 @@ func (this *ProxyListener) reconfigure(containerID, destAddr string) string {
 	return oldID
 }
 
+type Message struct {
+	err error
+	id  string
+}
+
 func (this *ProxyListener) handleConnection(cn net.Conn) {
 	defer cn.Close()
 
@@ -66,35 +70,29 @@ func (this *ProxyListener) handleConnection(cn net.Conn) {
 
 	log.Printf("Accepted %s to forward to %s", cn.RemoteAddr(), this.destAddr)
 
-	cond := sync.NewCond(&sync.Mutex{})
-	done := 0
-	notify := func() {
-		cond.L.Lock()
-		defer cond.L.Unlock()
-		done++
-		cond.Signal()
-	}
+	notify := make(chan Message, 2)
 
 	// Create two goroutines to asynchronously copy data to/from the source and
 	// destination addresses.
 	go (func() {
-		if _, err = io.Copy(dest, cn); err != nil {
-			log.Printf("Failed to copy to destination %s: %s", this.destAddr, err.Error())
-		}
-		notify()
+		_, err := io.Copy(dest, cn)
+		notify <- Message{err, "out"}
 	})()
 	go (func() {
-		if _, err = io.Copy(cn, dest); err != nil {
-			log.Printf("Failed to copy from destination %s: %s", this.destAddr, err.Error())
-		}
-		notify()
+		_, err := io.Copy(cn, dest)
+		notify <- Message{err, "in"}
 	})()
 
-	// Wait until we get notifications from both goroutines that the connection
-	// is finished.
-	cond.L.Lock()
-	for done != 2 {
-		cond.Wait()
+	// Wait until at least one copy has finished.
+	msg := <-notify
+	if msg.err != nil {
+		log.Printf("Failed to marshal %s traffic: %s", msg.id, msg.err.Error())
 	}
-	cond.L.Unlock()
+
+	// Hang up both connections, then wait for the other goroutine to finish.
+	// It will error since we've closed the connection, so we just discard the
+	// error.
+	cn.Close()
+	dest.Close()
+	<-notify
 }
