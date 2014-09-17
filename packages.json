@@ -1,5 +1,5 @@
 {
-    "repository": "github.com/edmodo/minion/proxyserver",
+    "repository": "github.com/edmodo/docker-proxy",
     "packages": {
         "github.com/fsouza/go-dockerclient": {
             "source": "https://github.com/fsouza/go-dockerclient"
