@@ -125,18 +125,21 @@ func (this *DockerClient) onContainerStarted(id string) bool {
 
 	if this.statusURL != "" {
 		url := fmt.Sprintf("http://%s%s", address, this.statusURL)
-		client := &http.Client{
-			Timeout: time.Second,
-		}
 		end := time.Now().Add(this.statusTimeout)
 		for {
 			if time.Now().After(end) {
 				log.Printf("New container came online, but did not respond to status queries.")
 				return false
 			}
-			if _, err := client.Get(url); err == nil {
+			client := &http.Client{
+				Timeout: time.Second,
+			}
+			response, err := client.Get(url)
+			if err == nil {
+				response.Body.Close()
 				break
 			}
+			log.Printf("querying status failed: %s", err.Error())
 			time.Sleep(time.Second)
 		}
 	}
