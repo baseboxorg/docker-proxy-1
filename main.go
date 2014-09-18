@@ -55,9 +55,9 @@ func NewDockerClient(address, tag string, proxy *ProxyServer) (*DockerClient, er
 	return client, nil
 }
 
-func (this *DockerClient) SetStatusInfo(statusURL string, timeout time.Duration) {
+func (this *DockerClient) SetStatusInfo(statusURL string, statusTimeout time.Duration) {
 	this.statusURL = statusURL
-	this.statusTimeout = timeout
+	this.statusTimeout = statusTimeout
 }
 
 func (this *DockerClient) SetGracePeriod(gracePeriod time.Duration) {
@@ -187,45 +187,45 @@ func (this *DockerClient) Listen() {
 }
 
 func main() {
-	addressp := flag.String("address", "0.0.0.0", "IP address to listen on")
-	portsp := flag.String("ports", "", "Comma-delimited list of host=container ports to listen on")
-	dockerp := flag.String("docker", "unix:///var/run/docker.sock", "URL of the Docker host")
-	tagp := flag.String("tag", "", "Tag of docker images to watch")
-	statusp := flag.String("status_url", "", "Optional HTTP status URL of docker container, e.g. :80/status")
-	timeoutp := flag.Duration("timeout", 10*time.Second, "Time to wait for a new container to respond to a status query")
-	gracePeriodp := flag.Duration("grace_period", 10*time.Second, "Time to wait before killing an old container")
+	address := flag.String("address", "0.0.0.0", "IP address to listen on")
+	ports := flag.String("ports", "", "Comma-delimited list of host=container ports to listen on")
+	docker := flag.String("docker", "unix:///var/run/docker.sock", "URL of the Docker host")
+	tag := flag.String("tag", "", "Tag of docker images to watch")
+	statusURL := flag.String("status_url", "", "Optional HTTP status URL of docker container, e.g. :80/status")
+	statusTimeout := flag.Duration("status_timeout", 10*time.Second, "Time to wait for a new container to respond to a status query")
+	gracePeriod := flag.Duration("grace_period", 10*time.Second, "Time to wait before killing an old container")
 	flag.Parse()
 
-	if *portsp == "" {
+	if *ports == "" {
 		fmt.Fprintf(os.Stderr, "Must specify one or more port mappings.\n")
 		flag.Usage()
 		os.Exit(1)
 	}
-	if *tagp == "" {
+	if *tag == "" {
 		fmt.Fprintf(os.Stderr, "Must specify a docker tag.\n")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	// Create the proxy server and begin listening in the background.
-	server, err := NewProxyServer(*addressp, *portsp)
+	server, err := NewProxyServer(*address, *ports)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not listen on %s: %s\n", *addressp, err.Error())
+		fmt.Fprintf(os.Stderr, "Could not listen on %s: %s\n", *address, err.Error())
 		os.Exit(1)
 	}
 	server.Start()
 	defer server.Stop()
 
-	dc, err := NewDockerClient(*dockerp, *tagp, server)
+	dc, err := NewDockerClient(*docker, *tag, server)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not connect to docker on %s: %s\n", *dockerp, err.Error())
+		fmt.Fprintf(os.Stderr, "Could not connect to docker on %s: %s\n", *docker, err.Error())
 		os.Exit(1)
 	}
 
-	if *statusp != "" {
-		dc.SetStatusInfo(*statusp, *timeoutp)
+	if *statusURL != "" {
+		dc.SetStatusInfo(*statusURL, *statusTimeout)
 	}
-	dc.SetGracePeriod(*gracePeriodp)
+	dc.SetGracePeriod(*gracePeriod)
 
 	// Try and proxy to anything currently running.
 	if err := dc.DetectExistingContainers(); err != nil {
