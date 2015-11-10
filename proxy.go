@@ -75,19 +75,12 @@ func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 			return nil, fmt.Errorf("port %s is not a valid port number", containerStartString)
 		}
 
-		fmt.Println(hostStart)
-		fmt.Println(hostEnd)
-		fmt.Println(containerStart)
 		for hostStart <= hostEnd {
-			fmt.Println("Listen on")
-			fmt.Println(hostStart)
-			listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", sourceAddr, hostStart))
+			listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", sourceAddr, strconv.FormatUint(hostStart, 10)))
 			if err != nil {
 				return nil, err
 			}
 
-			fmt.Println("creating listener to")
-			fmt.Println(strconv.FormatUint(containerStart, 10))
 			listeners = append(listeners, &ProxyListener{
 				destPort: strconv.FormatUint(containerStart, 10),
 				destAddr: "unknown:unknown",
@@ -115,4 +108,8 @@ func (this *ProxyServer) Stop() {
 	for _, listener := range this.listeners {
 		listener.stop()
 	}
+}
+
+func (this *ProxyServer) Listeners() []*ProxyListener {
+	return this.listeners
 }

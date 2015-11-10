@@ -3,6 +3,12 @@
     "packages": {
         "github.com/fsouza/go-dockerclient": {
             "source": "https://github.com/fsouza/go-dockerclient"
+        },
+        "github.com/onsi/ginkgo": {
+            "source": "git@github.com:onsi/ginkgo.git"
+        },
+        "github.com/onsi/gomega": {
+            "source": "git@github.com:onsi/gomega.git"
         }
     }
 }
