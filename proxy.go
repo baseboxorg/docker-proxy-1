@@ -48,23 +48,55 @@ func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 			containerPort = parts[1]
 		}
 
-		if _, err := strconv.ParseUint(hostPort, 10, 16); err != nil {
-			return nil, fmt.Errorf("port %s is not a valid port number", hostPort)
-		}
-		if _, err := strconv.ParseUint(containerPort, 10, 16); err != nil {
-			return nil, fmt.Errorf("port %s is not a valid port number", containerPort)
+		hostRange := strings.Split(hostPort, "-")
+
+		hostStartString := hostRange[0]
+		hostEndString := hostRange[0]
+		if len(hostRange) == 2 {
+			hostEndString = hostRange[1]
 		}
 
-		listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", sourceAddr, hostPort))
+		containerRange := strings.Split(containerPort, "-")
+
+		containerStartString := containerRange[0]
+
+		hostStart, err := strconv.ParseUint(hostStartString, 10, 16)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("port %s is not a valid port number", hostStartString)
 		}
 
-		listeners = append(listeners, &ProxyListener{
-			destPort: containerPort,
-			destAddr: "unknown:unknown",
-			listener: listener,
-		})
+		hostEnd, err := strconv.ParseUint(hostEndString, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("port %s is not a valid port number", hostEndString)
+		}
+
+		containerStart, err := strconv.ParseUint(containerStartString, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("port %s is not a valid port number", containerStartString)
+		}
+
+		fmt.Println(hostStart)
+		fmt.Println(hostEnd)
+		fmt.Println(containerStart)
+		for hostStart <= hostEnd {
+			fmt.Println("Listen on")
+			fmt.Println(hostStart)
+			listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", sourceAddr, hostStart))
+			if err != nil {
+				return nil, err
+			}
+
+			fmt.Println("creating listener to")
+			fmt.Println(strconv.FormatUint(containerStart, 10))
+			listeners = append(listeners, &ProxyListener{
+				destPort: strconv.FormatUint(containerStart, 10),
+				destAddr: "unknown:unknown",
+				listener: listener,
+			})
+
+			hostStart += 1
+			containerStart += 1
+		}
 	}
 
 	return &ProxyServer{
