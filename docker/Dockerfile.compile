@@ -1,1 +1,7 @@
-FROM golang:1.6-onbuild
+FROM golang:1.6
+
+RUN go get "github.com/fsouza/go-dockerclient"
+
+ADD . ./
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w' -o /go/bin/docker-proxy .

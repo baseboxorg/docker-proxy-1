@@ -1,6 +1,7 @@
 build:
+	rm -rf bin
 	docker build -f docker/Dockerfile.compile -t localhost/docker-proxy-build .
-	docker run -v $(shell pwd)/bin:/volume/bin/ localhost/docker-proxy-build cp /go/bin/app /volume/bin/docker-proxy
+	docker run -v $(shell pwd)/bin:/volume/bin/ localhost/docker-proxy-build cp /go/bin/docker-proxy /volume/bin/docker-proxy
 	docker build -f docker/Dockerfile.build -t registry.edmodo.io/docker-proxy .
 
 run:
