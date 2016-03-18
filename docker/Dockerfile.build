@@ -1,0 +1,8 @@
+FROM alpine
+
+RUN mkdir -p /docker-proxy/
+
+ADD start.sh /docker-proxy/
+ADD bin/docker-proxy /docker-proxy/
+
+CMD /docker-proxy/start.sh

@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/bin/sh
 
-DEPLOY_PATH=<%= ENV['DEPLOY_PATH'] %>
+DEPLOY_PATH=/docker-proxy
 GRACE_PERIOD=10s
 STATUS_TIMEOUT=10s
 STATUS_URL=:80/status
@@ -26,10 +26,10 @@ fi
 PORTS=$DOCKER_PROXY_PORTS
 TAG=$DOCKER_PROXY_TAG
 
-$DEPLOY_PATH/docker-proxy.bin 		\
-	-address=0.0.0.0 		\
+./docker-proxy.bin \
+	-address=0.0.0.0 \
 	-grace_period=$GRACE_PERIOD	\
 	-status_timeout=$STATUS_TIMEOUT	\
-	-status_url=$STATUS_URL 	\
-	-ports=$PORTS			\
+	-status_url=$STATUS_URL \
+	-ports=$PORTS \
 	-tag=$TAG
