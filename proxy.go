@@ -39,13 +39,13 @@ func parsePortRange(portRange string) (uint64, uint64, error) {
 		return 0, 0, fmt.Errorf("port range lower bound %s is not a valid port number", lowerBound)
 	}
 
-	upperBound, err := strconv.ParseUint(parts[0], 10, 16)
+	upperBound, err := strconv.ParseUint(parts[1], 10, 16)
 	if err != nil {
 		return 0, 0, fmt.Errorf("port range upper bound %s is not a valid port number", upperBound)
 	}
 
-	if upperBound <= lowerBound {
-		return 0, 0, fmt.Errorf("container port range %s is invalid", portRange)
+	if upperBound < lowerBound {
+		return 0, 0, fmt.Errorf("container port range %s is invalid, %d <= %d", portRange, upperBound, lowerBound)
 	}
 
 	return lowerBound, upperBound, nil
@@ -65,10 +65,10 @@ func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 			return nil, fmt.Errorf("port must in the form of host=container")
 		}
 
-		hostPortRange := strings.Split(parts[0], "-")
+		hostPortRange := parts[0]
 		containerPortRange := hostPortRange
 		if len(parts) == 2 {
-			containerPortRange = strings.Split(parts[1], "-")
+			containerPortRange = parts[1]
 		}
 
 		hostPortLowerBound, hostPortUpperBound, err := parsePortRange(hostPortRange)
@@ -81,24 +81,22 @@ func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 			return nil, err
 		}
 
+		if hostPortUpperBound - hostPortLowerBound != containerPortUpperBound - containerPortLowerBound {
+			return nil, fmt.Errorf("port ranges %s and %s must be the same size", hostPortRange, containerPortRange)
+		}
+
 		for offset := uint64(0); offset <= hostPortUpperBound - hostPortLowerBound; offset++ {
-			listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", hostPortLowerBound + offset, containerPortLowerBound + offset))
+			listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", sourceAddr, hostPortLowerBound + offset))
 			if err != nil {
 				return nil, err
 			}
 
 			listeners = append(listeners, &ProxyListener{
-				destPort: fmt.Sprintf("%s", containerPortLowerBound + offset),
+				destPort: fmt.Sprintf("%d", containerPortLowerBound + offset),
 				destAddr: "unknown:unknown",
 				listener: listener,
 			})
 		}
-
-		listeners = append(listeners, &ProxyListener{
-			destPort: containerPort,
-			destAddr: "unknown:unknown",
-			listener: listener,
-		})
 	}
 
 	return &ProxyServer{
