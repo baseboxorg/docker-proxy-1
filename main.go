@@ -123,7 +123,17 @@ func (this *DockerClient) onContainerStarted(id string) bool {
 
 	address := container.NetworkSettings.IPAddress
 
-	if this.statusURL != "" {
+	firstContainer := true
+        for _, listener := range this.proxy.listeners {
+                oldID := listener.reconfigure(id, address)
+                if oldID != "" {
+			firstContainer = false
+                }
+        }
+
+	if firstContainer {
+		log.Printf("First container came online, routing traffic to it.")
+	} else if this.statusURL != "" {
 		url := fmt.Sprintf("http://%s%s", address, this.statusURL)
 		end := time.Now().Add(this.statusTimeout)
 		for {
