@@ -133,6 +133,7 @@ func (this *DockerClient) onContainerStarted(id string) bool {
 
 	if firstContainer {
 		log.Printf("First container came online, routing traffic to it.")
+		return true
 	} else if this.statusURL != "" {
 		url := fmt.Sprintf("http://%s%s", address, this.statusURL)
 		end := time.Now().Add(this.statusTimeout)
