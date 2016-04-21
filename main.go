@@ -129,6 +129,13 @@ func (this *DockerClient) onContainerStarted(id string) bool {
 		for {
 			if time.Now().After(end) {
 				log.Printf("New container came online, but did not respond to status queries.")
+				log.Printf("Killing new container: %s", id)
+                        	err := this.dc.KillContainer(docker.KillContainerOptions{
+                     	          ID: id,
+                       		})
+                      		if err != nil {
+                               		log.Printf("Failed to signal container: %s", err.Error())
+                        	}
 				return false
 			}
 			client := &http.Client{
