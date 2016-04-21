@@ -31,7 +31,7 @@ type ProxyServer struct {
 func parsePortRange(portRange string) (uint64, uint64, error) {
 	parts := strings.Split(portRange, "-")
 	if len(parts) > 2 {
-		return 0, 0, fmt.Errorf("port range must in the form of lo-hi, got %s", portRange)
+		return 0, 0, fmt.Errorf("port range must in the form of either `value` or `lo-hi`, got %s", portRange)
 	}
 
 	lowerBound, err := strconv.ParseUint(parts[0], 10, 16)
@@ -39,13 +39,16 @@ func parsePortRange(portRange string) (uint64, uint64, error) {
 		return 0, 0, fmt.Errorf("port range lower bound %s is not a valid port number", lowerBound)
 	}
 
-	upperBound, err := strconv.ParseUint(parts[1], 10, 16)
-	if err != nil {
-		return 0, 0, fmt.Errorf("port range upper bound %s is not a valid port number", upperBound)
-	}
+	upperBound := lowerBound
+	if len(parts) == 2 {
+		upperBound, err = strconv.ParseUint(parts[1], 10, 16)
+		if err != nil {
+			return 0, 0, fmt.Errorf("port range upper bound %s is not a valid port number", upperBound)
+		}
 
-	if upperBound < lowerBound {
-		return 0, 0, fmt.Errorf("container port range %s is invalid, %d <= %d", portRange, upperBound, lowerBound)
+		if upperBound < lowerBound {
+			return 0, 0, fmt.Errorf("container port range %s is invalid, %d <= %d", portRange, upperBound, lowerBound)
+		}
 	}
 
 	return lowerBound, upperBound, nil
