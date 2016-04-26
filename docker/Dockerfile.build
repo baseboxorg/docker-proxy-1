@@ -1,0 +1,10 @@
+FROM busybox
+
+RUN mkdir -p /docker-proxy/
+
+ADD start.sh /docker-proxy/
+ADD bin/docker-proxy /docker-proxy/
+
+RUN chmod +x /docker-proxy/*
+
+CMD /docker-proxy/start.sh

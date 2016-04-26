@@ -1,9 +1,11 @@
-# vim: set ts=4 sw=4 tw=99 noet:
-include $(GOPATH)/src/github.com/edmodo/minion/rules.mk
+build:
+	rm -rf bin
+	docker build -f docker/Dockerfile.compile -t localhost/docker-proxy-build .
+	docker run -v $(shell pwd)/bin:/volume/bin/ localhost/docker-proxy-build cp /go/bin/docker-proxy /volume/bin/docker-proxy
+	docker build -f docker/Dockerfile.build -t registry.edmodo.io/docker-proxy .
 
-export SERVICE_NAME=docker-proxy
-export CONFIG_FILES=
+run:
+	docker run -t registry.edmodo.io/docker-proxy
 
-build_docker_with_binary: deployment_setup run_docker_build
-
-build_docker: install build_docker_with_binary
+push:
+	docker push registry.edmodo.io/docker-proxy
