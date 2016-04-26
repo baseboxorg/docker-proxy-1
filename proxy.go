@@ -28,6 +28,32 @@ type ProxyServer struct {
 	listeners  []*ProxyListener
 }
 
+func parsePortRange(portRange string) (uint64, uint64, error) {
+	parts := strings.Split(portRange, "-")
+	if len(parts) > 2 {
+		return 0, 0, fmt.Errorf("port range must in the form of either `value` or `lo-hi`, got %s", portRange)
+	}
+
+	lowerBound, err := strconv.ParseUint(parts[0], 10, 16)
+	if err != nil {
+		return 0, 0, fmt.Errorf("port range lower bound %s is not a valid port number", lowerBound)
+	}
+
+	upperBound := lowerBound
+	if len(parts) == 2 {
+		upperBound, err = strconv.ParseUint(parts[1], 10, 16)
+		if err != nil {
+			return 0, 0, fmt.Errorf("port range upper bound %s is not a valid port number", upperBound)
+		}
+
+		if upperBound < lowerBound {
+			return 0, 0, fmt.Errorf("container port range %s is invalid, %d <= %d", portRange, upperBound, lowerBound)
+		}
+	}
+
+	return lowerBound, upperBound, nil
+}
+
 // Create a new proxy server on the given source IP address, with a list of
 // port mappings. The port mapping list should be a comma-delimited list of
 // port numbers and/or host=container port mappings (such as 80=3000).
@@ -42,29 +68,38 @@ func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 			return nil, fmt.Errorf("port must in the form of host=container")
 		}
 
-		hostPort := parts[0]
-		containerPort := hostPort
+		hostPortRange := parts[0]
+		containerPortRange := hostPortRange
 		if len(parts) == 2 {
-			containerPort = parts[1]
+			containerPortRange = parts[1]
 		}
 
-		if _, err := strconv.ParseUint(hostPort, 10, 16); err != nil {
-			return nil, fmt.Errorf("port %s is not a valid port number", hostPort)
-		}
-		if _, err := strconv.ParseUint(containerPort, 10, 16); err != nil {
-			return nil, fmt.Errorf("port %s is not a valid port number", containerPort)
-		}
-
-		listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", sourceAddr, hostPort))
+		hostPortLowerBound, hostPortUpperBound, err := parsePortRange(hostPortRange)
 		if err != nil {
 			return nil, err
 		}
 
-		listeners = append(listeners, &ProxyListener{
-			destPort: containerPort,
-			destAddr: "unknown:unknown",
-			listener: listener,
-		})
+		containerPortLowerBound, containerPortUpperBound, err := parsePortRange(containerPortRange)
+		if err != nil {
+			return nil, err
+		}
+
+		if hostPortUpperBound - hostPortLowerBound != containerPortUpperBound - containerPortLowerBound {
+			return nil, fmt.Errorf("port ranges %s and %s must be the same size", hostPortRange, containerPortRange)
+		}
+
+		for offset := uint64(0); offset <= hostPortUpperBound - hostPortLowerBound; offset++ {
+			listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", sourceAddr, hostPortLowerBound + offset))
+			if err != nil {
+				return nil, err
+			}
+
+			listeners = append(listeners, &ProxyListener{
+				destPort: fmt.Sprintf("%d", containerPortLowerBound + offset),
+				destAddr: "unknown:unknown",
+				listener: listener,
+			})
+		}
 	}
 
 	return &ProxyServer{
