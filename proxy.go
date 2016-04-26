@@ -84,18 +84,18 @@ func NewProxyServer(sourceAddr, destPorts string) (*ProxyServer, error) {
 			return nil, err
 		}
 
-		if hostPortUpperBound - hostPortLowerBound != containerPortUpperBound - containerPortLowerBound {
+		if hostPortUpperBound-hostPortLowerBound != containerPortUpperBound-containerPortLowerBound {
 			return nil, fmt.Errorf("port ranges %s and %s must be the same size", hostPortRange, containerPortRange)
 		}
 
-		for offset := uint64(0); offset <= hostPortUpperBound - hostPortLowerBound; offset++ {
-			listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", sourceAddr, hostPortLowerBound + offset))
+		for offset := uint64(0); offset <= hostPortUpperBound-hostPortLowerBound; offset++ {
+			listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", sourceAddr, hostPortLowerBound+offset))
 			if err != nil {
 				return nil, err
 			}
 
 			listeners = append(listeners, &ProxyListener{
-				destPort: fmt.Sprintf("%d", containerPortLowerBound + offset),
+				destPort: fmt.Sprintf("%d", containerPortLowerBound+offset),
 				destAddr: "unknown:unknown",
 				listener: listener,
 			})

@@ -128,8 +128,8 @@ func (this *DockerClient) onContainerStarted(id string) bool {
 	for _, listener := range this.proxy.listeners {
 		if listener.containerID != "" {
 			firstContainer = false
-                }
-        }
+		}
+	}
 
 	if firstContainer {
 		log.Printf("First container came online, routing traffic to it.")
